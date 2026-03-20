@@ -1,14 +1,22 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Session, AuthError } from '@supabase/supabase-js';
+import { Session, AuthError, User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabase';
 import { useRouter } from 'expo-router';
+import { Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+
+// Ensure WebBrowser sessions are closed correctly on web
+WebBrowser.maybeCompleteAuthSession();
 
 interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<{ error: AuthError | null }>;
+  updateProfile: (displayName: string) => Promise<{ data: { user: User | null } | null; error: AuthError | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,10 +36,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('Error checking session:', error.message);
           setSession(null);
         } else if (session) {
-          console.log('Found persisted session for:', session.user.email);
           setSession(session);
         } else {
-          console.log('No persisted session found');
           setSession(null);
         }
       } catch (err) {
@@ -46,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', event, session?.user?.email);
+      console.log('Auth state changed:', event);
       setSession(session);
     });
 
@@ -55,7 +61,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     try {
-      console.log('Signing in:', email);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -65,11 +70,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Sign in error:', error.message);
         return { error };
       }
-
-      console.log('Sign in successful:', data.user?.email);
       return { error: null };
     } catch (err) {
-      console.error('Unexpected sign in error:', err);
       return { error: err as AuthError };
     }
   };
@@ -80,21 +82,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: window.location.origin,
-        }
       });
 
       if (error) {
-        console.error('Sign up error:', error.message);
         return { error };
       }
-
-      console.log('Signed up successfully:', data.user?.email);
       return { error: null };
     } catch (err) {
-      console.error('Unexpected sign up error:', err);
       return { error: err as AuthError };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setIsLoading(true);
+    try {
+      if (Platform.OS === 'web') {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin,
+          },
+        });
+      } else {
+        // Use the native scheme for redirect to ensure mobile devices can reach it
+        const redirectUrl = Linking.createURL('/');
+        console.log('Expo Redirect URL:', redirectUrl);
+
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: redirectUrl,
+            skipBrowserRedirect: true,
+          },
+        });
+        
+        if (error) throw error;
+        if (!data?.url) throw new Error('No auth URL returned from Supabase');
+
+        const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+        
+        if (res.type === 'success' && res.url) {
+          // Parse the access token from the URL hash
+          const parsedUrl = new URL(res.url.replace('#', '?'));
+          const accessToken = parsedUrl.searchParams.get('access_token');
+          const refreshToken = parsedUrl.searchParams.get('refresh_token');
+
+          if (accessToken && refreshToken) {
+             const { error: setSessionError } = await supabase.auth.setSession({
+                 access_token: accessToken,
+                 refresh_token: refreshToken
+             });
+             if (setSessionError) throw setSessionError;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Google sign in error:', err);
+      // Fallback for long URLs or specific browser issues
+      alert("Failed to connect to Google. Please ensure you have a stable internet connection.");
     } finally {
       setIsLoading(false);
     }
@@ -104,24 +151,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Sign out error:', error.message);
-        return { error };
-      }
-      
-      // Explicitly clear session
       setSession(null);
-      console.log('Signed out successfully, session cleared');
-      
-      // Force navigation to login
       router.replace('/(auth)/login');
-      
       return { error: null };
     } catch (err) {
-      console.error('Unexpected sign out error:', err);
       return { error: err as AuthError };
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const updateProfile = async (displayName: string) => {
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        data: { display_name: displayName }
+      });
+      
+      if (error) throw error;
+
+      // Manually refresh session to reflect changes in UI
+      const { data: { session: newSession } } = await supabase.auth.getSession();
+      setSession(newSession);
+      
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as AuthError };
     }
   };
 
@@ -132,7 +186,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         signIn,
         signUp,
+        signInWithGoogle,
         signOut,
+        updateProfile,
       }}
     >
       {children}
@@ -146,4 +202,4 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-} 
+}

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { TextInput, Button, Text, Card, SegmentedButtons, HelperText } from 'react-native-paper';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { View, StyleSheet, ScrollView, Platform } from 'react-native';
+import { TextInput, Button, Text, Card, SegmentedButtons, HelperText, IconButton } from 'react-native-paper';
 import { useLoans } from '../../context/LoanContext';
 import { CreateLoanDTO } from '../../types/loan';
 import { Colors, Spacing } from "../../theme";
@@ -54,18 +53,80 @@ const AddLoanForm: React.FC<AddLoanFormProps> = ({ onClose }) => {
     }
   };
 
+  // Cross-platform date picker handling
+  const handleDateChange = () => {
+    if (Platform.OS === 'web') {
+      // Use native HTML date input on web
+      const input = document.createElement('input');
+      input.type = 'date';
+      input.min = new Date().toISOString().split('T')[0];
+      if (dueDate) {
+        input.value = dueDate.toISOString().split('T')[0];
+      }
+      input.onchange = (e: any) => {
+        const selectedDate = new Date(e.target.value + 'T00:00:00');
+        if (!isNaN(selectedDate.getTime())) {
+          setDueDate(selectedDate);
+        }
+      };
+      input.click();
+    } else {
+      setShowDatePicker(true);
+    }
+  };
+
+  const renderNativeDatePicker = () => {
+    if (Platform.OS === 'web' || !showDatePicker) return null;
+    
+    // Dynamic import for native only
+    const DateTimePicker = require('@react-native-community/datetimepicker').default;
+    return (
+      <DateTimePicker
+        value={dueDate || new Date()}
+        mode="date"
+        display="default"
+        onChange={(event: any, selectedDate?: Date) => {
+          setShowDatePicker(false);
+          if (selectedDate) {
+            setDueDate(selectedDate);
+          }
+        }}
+        minimumDate={new Date()}
+      />
+    );
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.title}>Add New Loan</Text>
+          <Text style={styles.title}>
+            {type === 'BORROWED' ? '💸' : '🤝'} Add New Loan
+          </Text>
 
           <SegmentedButtons
             value={type}
             onValueChange={(value) => setType(value as 'BORROWED' | 'LENT')}
             buttons={[
-              { value: 'BORROWED', label: 'Borrowed' },
-              { value: 'LENT', label: 'Lent' },
+              { 
+                value: 'BORROWED', 
+                label: '💸 Borrowed',
+                style: type === 'BORROWED' ? styles.activeSegmentBorrowed : undefined,
+              },
+              { 
+                value: 'LENT', 
+                label: '🤝 Lent',
+                style: type === 'LENT' ? styles.activeSegmentLent : undefined,
+              },
             ]}
             style={styles.segment}
           />
@@ -87,6 +148,7 @@ const AddLoanForm: React.FC<AddLoanFormProps> = ({ onClose }) => {
             }
             placeholder="Enter amount"
             placeholderTextColor="#a1a1a1"
+            outlineStyle={styles.inputOutline}
           />
           <HelperText type="error" visible={!!errors.amount}>
             {errors.amount}
@@ -100,8 +162,9 @@ const AddLoanForm: React.FC<AddLoanFormProps> = ({ onClose }) => {
             style={styles.input}
             error={!!errors.name}
             left={<TextInput.Icon icon="account" />}
-            placeholder="Enter name"
+            placeholder="Who is this loan with?"
             placeholderTextColor="#a1a1a1"
+            outlineStyle={styles.inputOutline}
           />
           <HelperText type="error" visible={!!errors.name}>
             {errors.name}
@@ -114,39 +177,37 @@ const AddLoanForm: React.FC<AddLoanFormProps> = ({ onClose }) => {
             onChangeText={setDescription}
             style={styles.input}
             multiline
-            numberOfLines={3}
-            left={<TextInput.Icon icon="note" />}
-            placeholder="Enter description"
+            numberOfLines={2}
+            left={<TextInput.Icon icon="note-text" />}
+            placeholder="What is this loan for?"
             placeholderTextColor="#a1a1a1"
+            outlineStyle={styles.inputOutline}
           />
 
-          <Button
-            mode="outlined"
-            onPress={() => setShowDatePicker(true)}
-            style={styles.dateButton}
-            icon="calendar"
-          >
-            Set Due Date
-          </Button>
-          {dueDate && (
-            <Text style={styles.selectedDate}>
-              Selected Date: {dueDate.toLocaleDateString()}
-            </Text>
-          )}
-          {showDatePicker && (
-            <DateTimePicker
-              value={dueDate || new Date()}
-              mode="date"
-              display="default"
-              onChange={(event, selectedDate) => {
-                setShowDatePicker(false);
-                if (selectedDate) {
-                  setDueDate(selectedDate);
-                }
-              }}
-              minimumDate={new Date()}
-            />
-          )}
+          {/* Due Date Section */}
+          <View style={styles.dateSection}>
+            <Button
+              mode={dueDate ? 'contained' : 'outlined'}
+              onPress={handleDateChange}
+              style={[styles.dateButton, dueDate && styles.dateButtonActive]}
+              icon="calendar"
+              labelStyle={dueDate ? styles.dateButtonLabelActive : undefined}
+              contentStyle={styles.dateButtonContent}
+            >
+              {dueDate ? formatDate(dueDate) : 'Set Due Date'}
+            </Button>
+            {dueDate && (
+              <IconButton
+                icon="close-circle"
+                size={20}
+                onPress={() => setDueDate(null)}
+                iconColor="#FF4444"
+                style={styles.clearDateButton}
+              />
+            )}
+          </View>
+
+          {renderNativeDatePicker()}
 
           {errors.submit && (
             <Text style={styles.errorText}>{errors.submit}</Text>
@@ -157,11 +218,19 @@ const AddLoanForm: React.FC<AddLoanFormProps> = ({ onClose }) => {
               mode="contained"
               onPress={handleSubmit}
               loading={isSubmitting}
-              style={styles.button}
+              disabled={isSubmitting}
+              style={[styles.button, styles.saveButton]}
+              labelStyle={styles.saveButtonLabel}
+              icon="check"
             >
               Save
             </Button>
-            <Button mode="text" onPress={onClose} style={styles.button}>
+            <Button 
+              mode="outlined" 
+              onPress={onClose} 
+              style={[styles.button, styles.cancelButton]}
+              icon="close"
+            >
               Cancel
             </Button>
           </View>
@@ -176,62 +245,93 @@ const styles = StyleSheet.create({
     padding: Spacing.medium,
   },
   card: {
-    margin: Spacing.medium,
+    margin: Spacing.small,
     borderRadius: 20,
-    padding: Spacing.large + 4,
+    padding: Spacing.large,
     backgroundColor: Colors.card,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 10,
-    width: '95%',
+    shadowRadius: 12,
+    elevation: 12,
+    width: '100%',
+    maxWidth: 500,
     alignSelf: 'center',
   },
   title: {
     marginBottom: Spacing.medium,
     textAlign: 'center',
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: Colors.text,
   },
   segment: {
     marginBottom: Spacing.medium,
   },
+  activeSegmentBorrowed: {
+    backgroundColor: 'rgba(255, 68, 68, 0.2)',
+  },
+  activeSegmentLent: {
+    backgroundColor: 'rgba(29, 185, 84, 0.2)',
+  },
   input: {
-    marginBottom: Spacing.medium,
+    marginBottom: 4,
     backgroundColor: Colors.input,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    height: 55,
-    color: Colors.text,
     fontSize: 16,
   },
+  inputOutline: {
+    borderRadius: 12,
+  },
+  dateSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.medium,
+  },
   dateButton: {
-    marginVertical: Spacing.medium / 2,
+    flex: 1,
+    borderRadius: 12,
+  },
+  dateButtonActive: {
+    backgroundColor: 'rgba(29, 185, 84, 0.15)',
+    borderColor: '#1DB954',
+  },
+  dateButtonContent: {
+    paddingVertical: 6,
+  },
+  dateButtonLabelActive: {
+    color: '#1DB954',
+    fontWeight: '600',
+  },
+  clearDateButton: {
+    marginLeft: 4,
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: Spacing.medium,
-    width: '100%',
+    marginTop: Spacing.large,
+    gap: 12,
   },
   button: {
-    marginTop: 12,
-    flex: 0.48,
-    paddingVertical: 6,
+    flex: 1,
+    borderRadius: 12,
+  },
+  saveButton: {
+    backgroundColor: '#1DB954',
+    paddingVertical: 4,
+  },
+  saveButtonLabel: {
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  cancelButton: {
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   errorText: {
     color: Colors.error,
     marginTop: Spacing.small,
     textAlign: 'center',
-  },
-  selectedDate: {
-    color: Colors.text,
-    textAlign: 'center',
-    marginBottom: Spacing.medium / 2,
-    fontSize: 16,
+    fontSize: 14,
   },
 });
 
-export default AddLoanForm; 
+export default AddLoanForm;

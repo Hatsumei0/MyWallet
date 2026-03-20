@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Loan, CreateLoanDTO } from '../types/loan';
-import * as loanService from '../services/loans';
+import * as loanService from '../services/loan';
+import { useAuth } from './AuthContext';
 import { loadFromStorage, saveToStorage } from '../utils/localStorage';
 
 type LoanContextType = {
@@ -10,15 +11,16 @@ type LoanContextType = {
   createLoan: (loan: CreateLoanDTO) => Promise<void>;
   updateLoanStatus: (id: string, status: 'PENDING' | 'PAID' | 'OVERDUE') => Promise<void>;
   deleteLoan: (id: string) => Promise<void>;
-  refreshLoans: () => Promise<void>;
+  refreshLoans: (force?: boolean) => Promise<void>;
 };
 
 const LoanContext = createContext<LoanContextType | undefined>(undefined);
 
 export function LoanProvider({ children }: { children: React.ReactNode }) {
   const [loans, setLoans] = useState<Loan[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { session } = useAuth();
 
   // Load persisted loans from local storage on mount
   useEffect(() => {
@@ -37,41 +39,50 @@ export function LoanProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [loans]);
 
-  const refreshLoans = async () => {
+  const refreshLoans = useCallback(async (force = false) => {
+    if (!session?.user) {
+      console.log('No user session, skipping loan refresh');
+      return;
+    }
+
     try {
       setIsLoading(true);
+      setError(null);
       const { data, error } = await loanService.getLoans();
-      console.log('Fetched loans:', data);
       if (error) throw new Error(error.message);
       setLoans(data || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching loans:', err);
       setError('Failed to fetch loans');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [session?.user?.id]);
 
   useEffect(() => {
-    refreshLoans();
-  }, []);
+    if (session?.user) {
+      refreshLoans(true);
+    } else {
+      setLoans([]);
+    }
+  }, [session?.user?.id, refreshLoans]);
 
   const create = async (loan: CreateLoanDTO) => {
     const { error } = await loanService.createLoan(loan);
     if (error) throw new Error(error.message);
-    await refreshLoans();
+    await refreshLoans(true);
   };
 
   const updateStatus = async (id: string, status: 'PENDING' | 'PAID' | 'OVERDUE') => {
     const { error } = await loanService.updateLoanStatus(id, status);
     if (error) throw new Error(error.message);
-    await refreshLoans();
+    await refreshLoans(true);
   };
 
   const remove = async (id: string) => {
     const { error } = await loanService.deleteLoan(id);
     if (error) throw new Error(error.message);
-    await refreshLoans();
+    await refreshLoans(true);
   };
 
   return (
@@ -97,4 +108,4 @@ export function useLoans() {
     throw new Error('useLoans must be used within a LoanProvider');
   }
   return context;
-} 
+}

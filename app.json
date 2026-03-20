@@ -3,8 +3,10 @@
     "name": "MyWallet",
     "slug": "mywallet",
     "version": "1.0.0",
+    "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -17,7 +19,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#1DB954"
       },
       "package": "com.mywallet.app"
     },

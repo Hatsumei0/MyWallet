@@ -8,8 +8,8 @@ export interface Loan {
   user_id: string;
   amount: number;
   type: LoanType;
-  keeper_name: string;
-  keeper_contact?: string;
+  name: string;
+  description?: string;
   due_date?: string;
   status: LoanStatus;
   notes?: string;
@@ -20,50 +20,102 @@ export interface Loan {
 export interface CreateLoanDTO {
   amount: number;
   type: LoanType;
-  keeper_name: string;
-  keeper_contact?: string;
+  name: string;
+  description?: string;
   due_date?: string;
   notes?: string;
 }
 
-export const loanService = {
-  async createLoan(data: CreateLoanDTO) {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+export async function createLoan(loan: CreateLoanDTO): Promise<{ data: Loan | null; error: any }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
 
-      const { data: loan, error } = await supabase
-        .from('loans')
-        .insert([{
-          ...data,
-          user_id: user.id,
-          status: 'PENDING'
-        }])
-        .select()
-        .single();
+    const { data, error } = await supabase
+      .from('loans')
+      .insert([{
+        ...loan,
+        user_id: user.id,
+        status: 'PENDING'
+      }])
+      .select()
+      .single();
 
-      if (error) throw error;
-      return { data: loan as Loan, error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
-  },
-
-  async getLoans() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
-      const { data: loans, error } = await supabase
-        .from('loans')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('due_date', { ascending: true });
-
-      if (error) throw error;
-      return { data: loans as Loan[], error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
+    if (error) throw error;
+    return { data: data as Loan, error: null };
+  } catch (error) {
+    return { data: null, error };
   }
+}
+
+export async function getLoans(): Promise<{ data: Loan[] | null; error: any }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+      .from('loans')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('due_date', { ascending: true });
+
+    if (error) throw error;
+    return { data: data as Loan[], error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function updateLoanStatus(
+  id: string, 
+  status: LoanStatus,
+  notes?: string
+): Promise<{ data: Loan | null; error: any }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+      .from('loans')
+      .update({ 
+        status, 
+        notes: notes || null,
+        updated_at: new Date().toISOString() 
+      })
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { data: data as Loan, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function deleteLoan(id: string): Promise<{ error: any }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { error } = await supabase
+      .from('loans')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    return { error };
+  }
+}
+
+// Keeping the named export for context backward compatibility if they use the object
+export const loanService = {
+  createLoan,
+  getLoans,
+  updateLoanStatus,
+  deleteLoan
 };

@@ -7,29 +7,35 @@ A comprehensive personal finance tracking application designed for managing inco
 ## Tech Stack
 
 ### Frontend
+
 - React Native with TypeScript
 - Expo Framework
 - Expo Router for navigation
 - React Native Paper for UI components
 
 ### Backend
+
 - Supabase for database and authentication
 - RESTful API endpoints
 
 ### AI Integration
+
 - DeepSeek for natural language processing
 - AI-assisted transaction entry
 
 ## Core Features
 
 ### 1. Authentication System
+
 - Email-based authentication
 - Secure signup/login flow
 - Session persistence
 - Password recovery
 
 ### 2. Financial Management
+
 #### Transaction Handling
+
 - Balance tracking in NPR
 - Expense recording with:
   - Amount
@@ -41,6 +47,7 @@ A comprehensive personal finance tracking application designed for managing inco
 - Search and filtering capabilities
 
 #### AI Assistant Integration
+
 - Natural language processing for:
   - Quick expense entry
   - Income recording
@@ -48,6 +55,7 @@ A comprehensive personal finance tracking application designed for managing inco
   - Transaction categorization
 
 ### 3. Loan Management System
+
 - Track borrowed money
 - Record lent amounts
 - Store keeper information:
@@ -61,6 +69,7 @@ A comprehensive personal finance tracking application designed for managing inco
 ## Database Schema
 
 ### Users Table
+
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -73,6 +82,7 @@ CREATE TABLE users (
 ```
 
 ### Transactions Table
+
 ```sql
 CREATE TABLE transactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -89,6 +99,7 @@ CREATE TABLE transactions (
 ```
 
 ### Loans Table
+
 ```sql
 CREATE TABLE loans (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -106,6 +117,7 @@ CREATE TABLE loans (
 ```
 
 ### Categories Table
+
 ```sql
 CREATE TABLE categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -119,6 +131,7 @@ CREATE TABLE categories (
 ```
 
 ## Project Structure
+
 ```
 wallet/
 ├── app/                      # Main application directory
@@ -164,17 +177,18 @@ wallet/
 ## App Flow
 
 1. **Login/Signup**
+
    - Email authentication
    - Redirect to home on success
-
 2. **Home Screen**
+
    - Display total balance
    - Current date
    - Transaction history
    - Quick add buttons
    - AI chat interface
-
 3. **Lending & Borrowing**
+
    - Loan records table
    - Add new entries
    - Edit existing records

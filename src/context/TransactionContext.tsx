@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { Transaction, CreateTransactionDTO, transactionService } from '../services/transaction';
+import { Transaction, CreateTransactionDTO, UpdateTransactionDTO, transactionService } from '../services/transaction';
 import { useAuth } from './AuthContext'; // Import auth context to get user info
 import { supabase } from '../services/supabase';
 import { loadFromStorage, saveToStorage } from '../utils/localStorage';

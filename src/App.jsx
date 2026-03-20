@@ -1,1 +1,0 @@
-import LoanList from './components/loan/LoanList'; 

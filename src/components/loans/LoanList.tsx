@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Text, Card, List, IconButton, Menu, ActivityIndicator, Portal, Dialog } from 'react-native-paper';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text, Surface, IconButton, Menu, Portal, Dialog, Button } from 'react-native-paper';
 import { useLoans } from '../../context/LoanContext';
 import { format } from 'date-fns';
 import { Loan } from '../../types/loan';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 type Props = {
   type: 'BORROWED' | 'LENT';
@@ -42,132 +43,243 @@ export default function LoanList({ type }: Props) {
     return formatted.replace('NPR', 'Rs.');
   };
 
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'PAID': return '#1DB954';
+      case 'OVERDUE': return '#FF4444';
+      default: return '#FFA000';
+    }
+  };
 
   return (
-    <>
-      <View style={styles.container}>
-        <Text variant="titleLarge" style={styles.title}>
-          {type === 'BORROWED' ? 'Borrowed' : 'Lent'} Money
+    <View style={styles.container}>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>
+          {type === 'BORROWED' ? 'Borrowed From' : 'Lent To'}
         </Text>
+        <Surface style={styles.countBadge} elevation={0}>
+          <Text style={styles.countText}>{filteredLoans.length}</Text>
+        </Surface>
+      </View>
 
-        {filteredLoans.length === 0 ? (
-          <Card style={styles.card}>
-            <Card.Content>
-              <Text>No {type.toLowerCase()} loans found</Text>
-            </Card.Content>
-          </Card>
-        ) : (
-          filteredLoans.map(loan => (
-            <Card key={loan.id} style={styles.card}>
-              <Card.Content>
-                <List.Item
-                  title={loan.name}
-                  description={loan.due_date ? 
-                    `Due on: ${format(new Date(loan.due_date), 'PP')}\nStatus: ${loan.status}` :
-                    `Status: ${loan.status}`
-                  }
-                  left={props => <List.Icon {...props} icon="account" />}
-                  right={props => (
-                    <View style={styles.amountContainer}>
-                      <Text 
-                        variant="titleMedium"
-                        style={[
-                          styles.amount,
-                          { color: type === 'BORROWED' ? '#FF4444' : '#1DB954' }
-                        ]}
-                      >
-                        {formatAmount(loan.amount)}
-                      </Text>
-                      <Menu
-                        visible={menuVisible === loan.id}
-                        onDismiss={() => setMenuVisible(null)}
-                        anchor={
-                          <IconButton
-                            icon="dots-vertical"
-                            onPress={() => setMenuVisible(loan.id)}
-                          />
-                        }
-                      >
-                        {loan.status !== 'PAID' && (
-                          <Menu.Item
-                            onPress={() => {
-                              updateLoanStatus(loan.id, 'PAID');
-                              setMenuVisible(null);
-                            }}
-                            title="Mark as Paid"
-                          />
-                        )}
-                        <Menu.Item
-                          onPress={() => handleDeletePress(loan)}
-                          title="Delete"
-                          titleStyle={{ color: '#FF4444' }}
-                        />
-                      </Menu>
+      {filteredLoans.length === 0 ? (
+        <Surface style={styles.emptyCard} elevation={0}>
+          <Text style={styles.emptyText}>No {type.toLowerCase()} records yet.</Text>
+        </Surface>
+      ) : (
+        filteredLoans.map(loan => (
+          <Surface key={loan.id} style={styles.loanCard} elevation={1}>
+            <View style={styles.cardMain}>
+              <View style={[styles.avatar, { backgroundColor: type === 'BORROWED' ? 'rgba(255, 68, 68, 0.1)' : 'rgba(29, 185, 84, 0.1)' }]}>
+                <MaterialCommunityIcons 
+                  name={type === 'BORROWED' ? 'arrow-down-left' : 'arrow-up-right'} 
+                  size={24} 
+                  color={type === 'BORROWED' ? '#FF4444' : '#1DB954'} 
+                />
+              </View>
+              
+              <View style={styles.loanInfo}>
+                <Text style={styles.name}>{loan.name}</Text>
+                <View style={styles.detailsRow}>
+                  {loan.due_date && (
+                    <View style={styles.detailItem}>
+                      <MaterialCommunityIcons name="calendar-clock" size={12} color="rgba(255,255,255,0.4)" />
+                      <Text style={styles.detailText}>{format(new Date(loan.due_date), 'PP')}</Text>
                     </View>
                   )}
-                />
-              </Card.Content>
-            </Card>
-          ))
-        )}
-      </View>
+                  <View style={[styles.statusBadge, { borderColor: getStatusColor(loan.status) }]}>
+                    <Text style={[styles.statusText, { color: getStatusColor(loan.status) }]}>{loan.status}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.rightAction}>
+                <Text style={[styles.amount, { color: type === 'BORROWED' ? '#FF4444' : '#1DB954' }]}>
+                  {formatAmount(loan.amount)}
+                </Text>
+                <Menu
+                  visible={menuVisible === loan.id}
+                  onDismiss={() => setMenuVisible(null)}
+                  contentStyle={styles.menuContent}
+                  anchor={
+                    <IconButton
+                      icon="dots-vertical"
+                      iconColor="rgba(255,255,255,0.4)"
+                      size={20}
+                      onPress={() => setMenuVisible(loan.id)}
+                    />
+                  }
+                >
+                  {loan.status !== 'PAID' && (
+                    <Menu.Item
+                      onPress={() => {
+                        updateLoanStatus(loan.id, 'PAID');
+                        setMenuVisible(null);
+                      }}
+                      title="Mark as Paid"
+                      leadingIcon="check-circle"
+                      titleStyle={{ color: '#fff' }}
+                    />
+                  )}
+                  <Menu.Item
+                    onPress={() => handleDeletePress(loan)}
+                    title="Delete"
+                    leadingIcon="delete"
+                    titleStyle={{ color: '#FF4444' }}
+                  />
+                </Menu>
+              </View>
+            </View>
+          </Surface>
+        ))
+      )}
 
       <Portal>
         <Dialog
           visible={deleteConfirmVisible}
           onDismiss={() => setDeleteConfirmVisible(false)}
+          style={styles.dialog}
         >
-          <Dialog.Title>Delete Loan</Dialog.Title>
+          <Dialog.Title style={styles.dialogTitle}>Delete Record</Dialog.Title>
           <Dialog.Content>
-            <Text>
-              Are you sure you want to delete this loan{selectedLoan ? ` with ${selectedLoan.name}` : ''}? 
-              This action cannot be undone.
+            <Text style={styles.dialogContent}>
+              Delete record with <Text style={{ color: '#fff', fontWeight: '800' }}>{selectedLoan?.name}</Text>?
+              This operation is final.
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <IconButton
-              icon="close"
-              onPress={() => setDeleteConfirmVisible(false)}
-            />
-            <IconButton
-              icon="check"
-              onPress={handleDeleteConfirm}
-            />
+            <Button textColor="rgba(255,255,255,0.6)" onPress={() => setDeleteConfirmVisible(false)}>Cancel</Button>
+            <Button mode="contained" buttonColor="#FF4444" onPress={handleDeleteConfirm}>Delete</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    width: '100%',
   },
-  loadingContainer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  title: {
-    marginBottom: 8,
-    color: '#ffffff',
-  },
-  card: {
-    marginBottom: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  amountContainer: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.7)',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  countBadge: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  countText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  emptyCard: {
+    padding: 24,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: 'rgba(255,255,255,0.2)',
+    fontSize: 14,
+  },
+  loanCard: {
+    marginBottom: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
+  },
+  cardMain: {
+    flexDirection: 'row',
+    padding: 12,
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  loanInfo: {
+    flex: 1,
+  },
+  name: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  detailText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '500',
+  },
+  statusBadge: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  statusText: {
+    fontSize: 9,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  rightAction: {
+    alignItems: 'flex-end',
   },
   amount: {
-    marginRight: 8,
+    fontSize: 16,
+    fontWeight: '800',
   },
-}); 
+  menuContent: {
+    backgroundColor: '#16213e',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  dialog: {
+    backgroundColor: '#16213e',
+    borderRadius: 24,
+  },
+  dialogTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  dialogContent: {
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+});
